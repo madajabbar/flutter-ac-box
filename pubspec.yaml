@@ -1,0 +1,43 @@
+name: ac_box_app
+description: Aplikasi kontrol akses AC-Box.
+
+# Versi aplikasi
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0' # Sesuaikan dengan versi Flutter Anda
+  flutter: ">=3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Untuk permintaan HTTP ke ESP32
+  http: ^1.2.2 # Gunakan versi terbaru yang kompatibel
+
+  # Untuk autentikasi biometrik (sidik jari)
+  local_auth: ^2.3.0 # Gunakan versi terbaru yang kompatibel
+
+  # Untuk penemuan perangkat via mDNS - Ganti ini
+  # network_service_discovery: ^6.0.3
+  multicast_dns: ^0.3.2+2 # Gunakan ini sebagai gantinya
+
+  # Untuk state management (menyimpan IP AC-Box, status, dll)
+  provider: ^6.1.2 # Gunakan versi terbaru yang kompatibel
+
+  # Untuk format tanggal/waktu di riwayat
+  intl: ^0.19.0 # Gunakan versi terbaru yang kompatibel
+
+  cupertino_icons: ^1.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  # Jika Anda menambahkan aset (gambar, font, dll), daftarkan di sini
+  # assets:
+  #   - images/a_dot_burr.jpeg
+  #   - images/a_dot_ham.jpeg

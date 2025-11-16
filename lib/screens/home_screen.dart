@@ -1,3 +1,5 @@
+// lib/screens/home_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/device_provider.dart';
@@ -60,12 +62,26 @@ class _HomeScreenState extends State<HomeScreen> {
                 bool isAuthenticated = await AuthService.authenticate();
 
                 if (isAuthenticated) {
-                  // 2. Jika berhasil, kirim perintah ke ESP32
-                  bool success = await ApiService.unlockDoor(ipAddress);
+                  // 2. Jika berhasil, kirim perintah ke ESP32 dan dapatkan ID
+                  final deviceProvider = Provider.of<DeviceProvider>(context, listen: false);
+                  final String ipAddress = deviceProvider.deviceIpAddress ?? '';
+                  if (ipAddress.isEmpty) {
+                    if (mounted) {
+                       ScaffoldMessenger.of(context).showSnackBar(
+                         const SnackBar(content: Text('Alamat IP AC-Box tidak ditemukan.')),
+                       );
+                    }
+                    return; // Keluar jika IP tidak ditemukan
+                  }
 
-                  // 3. Tampilkan hasil
-                  if (success) {
-                    if (mounted) { // Cek mounted sebelum menampilkan snackbar
+                  int? espAccessId = await ApiService.unlockDoorAndGetId(ipAddress);
+
+                  // 3. Tampilkan hasil dan simpan ke riwayat lokal
+                  if (espAccessId != null) {
+                    // Simpan ke riwayat lokal di Provider
+                    deviceProvider.addAccessLogLocally(espAccessId);
+
+                    if (mounted) {
                        ScaffoldMessenger.of(context).showSnackBar(
                          const SnackBar(content: Text('Pintu dibuka!')),
                        );
@@ -73,7 +89,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   } else {
                     if (mounted) {
                        ScaffoldMessenger.of(context).showSnackBar(
-                         const SnackBar(content: Text('Gagal membuka pintu.')),
+                         const SnackBar(content: Text('Gagal membuka pintu atau mendapatkan ID.')),
                        );
                     }
                   }

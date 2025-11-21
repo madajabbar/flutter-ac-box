@@ -1,9 +1,12 @@
 // lib/screens/home_screen.dart
 
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+// Tambahkan import untuk library enkripsi dan http
+import 'package:encrypt/encrypt.dart' as enc; // Gunakan prefix 'enc' untuk encrypt
+import 'package:http/http.dart' as http; // Gunakan prefix 'http' untuk http
 import '../providers/device_provider.dart';
-import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import 'history_screen.dart'; // Layar riwayat
 
@@ -15,6 +18,80 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  // Hardcode SHARED_KEY dan IV
+  // Pastikan panjangnya sesuai (32 byte untuk AES-256, 16 byte untuk IV)
+  static const String _hardcodedKey = 'MySuperSecretKey123456789012345'; // 32 karakter
+  static const String _hardcodedIV = 'MyInitVector1234'; // 16 karakter
+
+  // Fungsi untuk mengirim perintah terenkripsi ke ESP32
+  Future<void> _sendEncryptedUnlockCommand(String ipAddress) async {
+    try {
+      // Gunakan enc.Key dan enc.IV dari library encrypt
+      final key = enc.Key.fromUtf8(_hardcodedKey);
+      final iv = enc.IV.fromUtf8(_hardcodedIV);
+      final encrypter = enc.Encrypter(enc.AES(key));
+
+      // Siapkan data
+      final nonce = DateTime.now().millisecondsSinceEpoch;
+      final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      final data = {
+        'command': 'buka',
+        'timestamp': timestamp,
+        'nonce': nonce,
+      };
+      final jsonString = jsonEncode(data);
+
+      print('Data Asli: $jsonString');
+
+      // Enkripsi data
+      final encrypted = encrypter.encrypt(jsonString, iv: iv);
+      final encryptedBase64 = encrypted.base64;
+
+      print('Kode Enkripsi: $encryptedBase64');
+
+      // Gunakan http.get dari library http
+      final response = await http.get(Uri.parse('http://$ipAddress/buka?code=$encryptedBase64'));
+
+      if (response.statusCode == 200) {
+        print('Perintah terenkripsi dikirim dan diterima oleh ESP32.');
+        final idString = response.body.trim();
+        final id = int.tryParse(idString);
+        if (id != null) {
+          // Simpan ke riwayat lokal di DeviceProvider
+          final deviceProvider = Provider.of<DeviceProvider>(context, listen: false);
+          deviceProvider.addAccessLogLocally(id);
+          if (mounted) {
+             ScaffoldMessenger.of(context).showSnackBar(
+               const SnackBar(content: Text('Pintu dibuka!')),
+             );
+          }
+        } else {
+           print('Gagal menguraikan ID dari respons ESP32: ${response.body}');
+           if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Gagal membuka pintu (respon tidak valid).')),
+              );
+           }
+        }
+      } else {
+        print('Gagal mengirim perintah terenkripsi: ${response.statusCode}');
+        if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(
+             const SnackBar(content: Text('Gagal mengirim perintah ke ESP32.')),
+           );
+        }
+      }
+    } catch (e) {
+      print('Error membuat/mengirim perintah terenkripsi: $e');
+      if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(content: Text('Error enkripsi: $e')),
+         );
+      }
+    }
+  }
+
+
   @override
   Widget build(BuildContext context) {
     final deviceProvider = Provider.of<DeviceProvider>(context);
@@ -62,7 +139,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 bool isAuthenticated = await AuthService.authenticate();
 
                 if (isAuthenticated) {
-                  // 2. Jika berhasil, kirim perintah ke ESP32 dan dapatkan ID
+                  // 2. Jika berhasil, kirim perintah terenkripsi ke ESP32
                   final deviceProvider = Provider.of<DeviceProvider>(context, listen: false);
                   final String ipAddress = deviceProvider.deviceIpAddress ?? '';
                   if (ipAddress.isEmpty) {
@@ -74,25 +151,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     return; // Keluar jika IP tidak ditemukan
                   }
 
-                  int? espAccessId = await ApiService.unlockDoorAndGetId(ipAddress);
+                  // Gunakan fungsi baru untuk mengirim perintah terenkripsi
+                  await _sendEncryptedUnlockCommand(ipAddress);
 
-                  // 3. Tampilkan hasil dan simpan ke riwayat lokal
-                  if (espAccessId != null) {
-                    // Simpan ke riwayat lokal di Provider
-                    deviceProvider.addAccessLogLocally(espAccessId);
-
-                    if (mounted) {
-                       ScaffoldMessenger.of(context).showSnackBar(
-                         const SnackBar(content: Text('Pintu dibuka!')),
-                       );
-                    }
-                  } else {
-                    if (mounted) {
-                       ScaffoldMessenger.of(context).showSnackBar(
-                         const SnackBar(content: Text('Gagal membuka pintu atau mendapatkan ID.')),
-                       );
-                    }
-                  }
                 } else {
                   // 4. Jika autentikasi gagal
                   if (mounted) {

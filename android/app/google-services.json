@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "72504845588",
+    "project_id": "acbox-21e14",
+    "storage_bucket": "acbox-21e14.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:72504845588:android:99fd16317957d8c3674e01",
+        "android_client_info": {
+          "package_name": "com.example.ac_box_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "72504845588-vm78vcferrvisi4b53att5s10viglrnc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD5D0WVg6wW1Kp09ko1hEqJKqP7WbbEjYE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "72504845588-vm78vcferrvisi4b53att5s10viglrnc.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "72504845588-c7dtf0j2e5bl7kpjr8v57idgct0t2bqi.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.acBoxApp"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

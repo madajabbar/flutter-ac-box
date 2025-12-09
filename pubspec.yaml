@@ -24,6 +24,7 @@ dependencies:
   provider: ^6.1.2
   intl: ^0.19.0
   cupertino_icons: ^1.0.2
+  shared_preferences: ^2.2.2
   # Tidak perlu package tambahan lain untuk pendekatan ini
   encrypt: ^5.0.0
 dev_dependencies:

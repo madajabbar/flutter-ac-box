@@ -11,8 +11,14 @@ class DeviceProvider with ChangeNotifier {
   bool _isLoading = true;
   bool get isLoading => _isLoading;
 
+  bool _isScanning = false;
+  bool get isScanning => _isScanning;
+
   List<String> _foundDevices = [];
   List<String> get foundDevices => _foundDevices;
+
+  String? _lastError;
+  String? get lastError => _lastError;
 
   // Tambahkan variabel untuk riwayat lokal
   List<AccessLogEntry> _localHistory = [];
@@ -45,7 +51,7 @@ class DeviceProvider with ChangeNotifier {
     _localHistory.add(newEntry);
     // Opsional: Batasi jumlah entri lokal
     if (_localHistory.length > 50) {
-        _localHistory.removeAt(0); // Hapus entri paling lama jika melebihi batas
+      _localHistory.removeAt(0); // Hapus entri paling lama jika melebihi batas
     }
     notifyListeners(); // Update UI
   }
@@ -60,11 +66,15 @@ class DeviceProvider with ChangeNotifier {
   Future<void> discoverDeviceByHostname() async {
     print("Memulai pencarian dengan hostname ac-box.local..."); // Log awal
     setLoading(true);
+    _isScanning = true;
     _foundDevices.clear();
+    _lastError = null;
+    notifyListeners();
 
     try {
-      // Coba resolve hostname "ac-box.local"
-      final addresses = await InternetAddress.lookup('ac-box.local');
+      // Coba resolve hostname "ac-box.local" dengan timeout
+      final addresses = await InternetAddress.lookup('ac-box.local')
+          .timeout(Duration(seconds: 10));
       print("Jumlah alamat ditemukan: ${addresses.length}");
 
       for (final address in addresses) {
@@ -75,14 +85,73 @@ class DeviceProvider with ChangeNotifier {
       }
 
       if (_foundDevices.isEmpty) {
+        _lastError = "No IPv4 address found for ac-box.local";
         print("Tidak ada alamat IPv4 ditemukan untuk ac-box.local");
+      } else {
+        // Automatically select the first device
+        _deviceIpAddress = _foundDevices.first;
+        print("Device IP automatically set to: $_deviceIpAddress");
       }
-
     } catch (e) {
       print('Error dalam pencarian DNS: $e');
+      if (e.toString().contains('Failed host lookup')) {
+        _lastError =
+            "AC-Box not found. Please ensure the device is powered on and connected to the same network.";
+      } else if (e.toString().contains('TimeoutException')) {
+        _lastError = "Search timeout. Please check your network connection.";
+      } else {
+        _lastError = "Error: $e";
+      }
     } finally {
       setLoading(false);
+      _isScanning = false;
       notifyListeners(); // Update UI
+    }
+  }
+
+  // Fungsi untuk rescan (dipanggil dari UI)
+  Future<bool> rescanDevice() async {
+    print("Rescanning for AC-Box device...");
+    _isScanning = true;
+    _lastError = null;
+    notifyListeners();
+
+    try {
+      final addresses = await InternetAddress.lookup('ac-box.local')
+          .timeout(Duration(seconds: 10));
+
+      _foundDevices.clear();
+      for (final address in addresses) {
+        if (address.type == InternetAddressType.IPv4) {
+          _foundDevices.add(address.address);
+        }
+      }
+
+      if (_foundDevices.isNotEmpty) {
+        _deviceIpAddress = _foundDevices.first;
+        print("Rescan successful! Device found at: $_deviceIpAddress");
+        _isScanning = false;
+        notifyListeners();
+        return true;
+      } else {
+        _lastError = "No IPv4 address found for ac-box.local";
+        _isScanning = false;
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      print('Error during rescan: $e');
+      if (e.toString().contains('Failed host lookup')) {
+        _lastError =
+            "AC-Box not found. Please ensure the device is powered on and connected to the same network.";
+      } else if (e.toString().contains('TimeoutException')) {
+        _lastError = "Search timeout. Please check your network connection.";
+      } else {
+        _lastError = "Error: $e";
+      }
+      _isScanning = false;
+      notifyListeners();
+      return false;
     }
   }
 

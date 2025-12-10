@@ -67,8 +67,9 @@ class _HomeScreenState extends State<HomeScreen>
       final encodedCode = Uri.encodeComponent(encryptedBase64);
       print('Kode Enkripsi (URL Encoded): $encodedCode');
 
-      final response =
-          await http.get(Uri.parse('http://$ipAddress/buka?code=$encodedCode'));
+      final response = await http
+          .get(Uri.parse('http://$ipAddress/buka?code=$encodedCode'))
+          .timeout(Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         print('Perintah terenkripsi dikirim dan diterima oleh ESP32.');
@@ -125,22 +126,128 @@ class _HomeScreenState extends State<HomeScreen>
       }
     } catch (e) {
       print('Error membuat/mengirim perintah terenkripsi: $e');
+
+      // Check if it's a connection error
+      bool isConnectionError = e.toString().contains('SocketException') ||
+          e.toString().contains('Connection refused') ||
+          e.toString().contains('TimeoutException');
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Encryption error: $e'),
-            backgroundColor: Color(0xFFFF3B30),
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
+        if (isConnectionError) {
+          // Show dialog with rescan option
+          _showConnectionErrorDialog();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Encryption error: $e'),
+              backgroundColor: Color(0xFFFF3B30),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+          );
+        }
       }
     } finally {
       if (mounted) {
         setState(() {
           _isUnlocking = false;
         });
+      }
+    }
+  }
+
+  void _showConnectionErrorDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Icon(Icons.error_outline_rounded, color: Color(0xFFFF3B30)),
+            SizedBox(width: 12),
+            Text(
+              'Connection Failed',
+              style: GoogleFonts.inter(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Cannot connect to AC-Box. The device may be offline or the IP address has changed.',
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            color: Color(0xFF8E8E93),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(
+                color: Color(0xFF8E8E93),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await _performRescan();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Color(0xFF007AFF),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Text(
+              'Rescan',
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _performRescan() async {
+    final deviceProvider = Provider.of<DeviceProvider>(context, listen: false);
+    final success = await deviceProvider.rescanDevice();
+
+    if (mounted) {
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle_rounded, color: Colors.white),
+                SizedBox(width: 12),
+                Text('AC-Box found at ${deviceProvider.deviceIpAddress}'),
+              ],
+            ),
+            backgroundColor: Color(0xFF34C759),
+            behavior: SnackBarBehavior.floating,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(deviceProvider.lastError ?? 'Failed to find AC-Box'),
+            backgroundColor: Color(0xFFFF3B30),
+            behavior: SnackBarBehavior.floating,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
       }
     }
   }
@@ -165,6 +272,23 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         ),
         actions: [
+          Consumer<DeviceProvider>(
+            builder: (context, provider, _) => IconButton(
+              icon: provider.isScanning
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(Color(0xFF007AFF)),
+                      ),
+                    )
+                  : Icon(Icons.refresh_rounded, color: Color(0xFF007AFF)),
+              onPressed: provider.isScanning ? null : _performRescan,
+              tooltip: 'Rescan AC-Box',
+            ),
+          ),
           IconButton(
             icon: Icon(Icons.history_rounded, color: Color(0xFF007AFF)),
             onPressed: () {
@@ -219,15 +343,41 @@ class _HomeScreenState extends State<HomeScreen>
                       ),
                     ),
                     SizedBox(height: 24),
-                    Text(
-                      'Connected Device',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        color: Color(0xFF8E8E93),
-                        fontWeight: FontWeight.w500,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: ipAddress != 'Unknown'
+                                ? Color(0xFF34C759)
+                                : Color(0xFFFF3B30),
+                            boxShadow: [
+                              BoxShadow(
+                                color: (ipAddress != 'Unknown'
+                                        ? Color(0xFF34C759)
+                                        : Color(0xFFFF3B30))
+                                    .withOpacity(0.5),
+                                blurRadius: 8,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          ipAddress != 'Unknown' ? 'Connected' : 'Disconnected',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            color: Color(0xFF8E8E93),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
-                    SizedBox(height: 8),
+                    SizedBox(height: 12),
                     Container(
                       padding:
                           EdgeInsets.symmetric(horizontal: 16, vertical: 8),

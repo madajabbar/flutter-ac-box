@@ -189,11 +189,19 @@ class _LoadingScreenState extends State<LoadingScreen> {
                       ),
                       SizedBox(height: 24),
                       Text(
-                        'Searching for devices...',
+                        'Searching for AC-Box...',
                         style: GoogleFonts.inter(
                           fontSize: 16,
                           color: Color(0xFF8E8E93),
                           fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Please ensure the device is powered on',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: Color(0xFFAEAEB2),
                         ),
                       ),
                     ],
@@ -228,13 +236,26 @@ class _LoadingScreenState extends State<LoadingScreen> {
                         ),
                       ),
                       SizedBox(height: 8),
-                      Text(
-                        'Please try searching again',
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          color: Color(0xFF8E8E93),
+                      if (deviceProvider.lastError != null)
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 40),
+                          child: Text(
+                            deviceProvider.lastError!,
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              color: Color(0xFF8E8E93),
+                            ),
+                          ),
+                        )
+                      else
+                        Text(
+                          'Please try searching again',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            color: Color(0xFF8E8E93),
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 ),

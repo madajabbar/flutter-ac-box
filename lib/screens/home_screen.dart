@@ -1,11 +1,13 @@
 // lib/screens/home_screen.dart
 
 import 'dart:convert';
+import 'package:appwrite/appwrite.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:encrypt/encrypt.dart' as enc;
 import 'package:http/http.dart' as http;
+import '../main.dart';
 import '../providers/device_provider.dart';
 import '../services/auth_service.dart';
 import 'history_screen.dart';
@@ -22,6 +24,7 @@ class _HomeScreenState extends State<HomeScreen>
   static const String _hardcodedKey = 'A1B2C3D4E5F67890GHIJKLMNOPQRSTUV';
   static const String _hardcodedIV = 'WXYZ1234567890AB';
   bool _isUnlocking = false;
+  bool _isDisconnecting = false;
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
@@ -68,7 +71,7 @@ class _HomeScreenState extends State<HomeScreen>
       print('Kode Enkripsi (URL Encoded): $encodedCode');
 
       final response = await http
-          .get(Uri.parse('http://$ipAddress/buka?code=$encodedCode'))
+          .get(Uri.parse('http://$ipAddress:80/buka?code=$encodedCode'))
           .timeout(Duration(seconds: 10));
 
       if (response.statusCode == 200) {
@@ -252,6 +255,254 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  Future<void> _showLogoutDialog() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.logout_rounded, color: Color(0xFFFF3B30), size: 28),
+              SizedBox(width: 12),
+              Text(
+                'Logout',
+                style: GoogleFonts.inter(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF1C1C1E),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            'Are you sure you want to logout?',
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: Color(0xFF8E8E93),
+              height: 1.5,
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF007AFF),
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: TextButton.styleFrom(
+                backgroundColor: Color(0xFFFF3B30).withOpacity(0.1),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  'Logout',
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFFFF3B30),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      try {
+        final account = Provider.of<Account>(context, listen: false);
+        await account.deleteSession(sessionId: 'current');
+
+        if (mounted) {
+          navigatorKey.currentState!.pushNamedAndRemoveUntil(
+            '/login',
+            (route) => false,
+          );
+        }
+      } catch (e) {
+        print('Logout error: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Logout failed: $e'),
+              backgroundColor: Color(0xFFFF3B30),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _disconnectWiFi() async {
+    final deviceProvider = Provider.of<DeviceProvider>(context, listen: false);
+    final String ipAddress = deviceProvider.deviceIpAddress ?? '';
+
+    if (ipAddress.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('AC-Box IP address not found.'),
+            backgroundColor: Color(0xFFFF3B30),
+            behavior: SnackBarBehavior.floating,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+      return;
+    }
+
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.wifi_off_rounded, color: Color(0xFFFF3B30), size: 28),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Disconnect WiFi?',
+                  style: GoogleFonts.inter(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1C1C1E),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            'This will disconnect the ESP32 from WiFi. You will need to reconfigure the WiFi settings to reconnect.',
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: Color(0xFF8E8E93),
+              height: 1.5,
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF007AFF),
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: TextButton.styleFrom(
+                backgroundColor: Color(0xFFFF3B30).withOpacity(0.1),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  'Disconnect',
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFFFF3B30),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    setState(() {
+      _isDisconnecting = true;
+    });
+
+    try {
+      final response = await http
+          .get(Uri.parse('http://$ipAddress:80/disconnect_wifi'))
+          .timeout(Duration(seconds: 10));
+
+      if (mounted) {
+        if (response.statusCode == 200) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle_rounded, color: Colors.white),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text('WiFi disconnected successfully!'),
+                  ),
+                ],
+              ),
+              backgroundColor: Color(0xFF34C759),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to disconnect: ${response.statusCode}'),
+              backgroundColor: Color(0xFFFF3B30),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('Error disconnecting WiFi: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to disconnect: $e'),
+            backgroundColor: Color(0xFFFF3B30),
+            behavior: SnackBarBehavior.floating,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDisconnecting = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final deviceProvider = Provider.of<DeviceProvider>(context);
@@ -272,6 +523,21 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         ),
         actions: [
+          IconButton(
+            icon: _isDisconnecting
+                ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(Color(0xFFFF3B30)),
+                    ),
+                  )
+                : Icon(Icons.wifi_off_rounded, color: Color(0xFFFF3B30)),
+            tooltip: 'Disconnect WiFi',
+            onPressed: _isDisconnecting ? null : _disconnectWiFi,
+          ),
           Consumer<DeviceProvider>(
             builder: (context, provider, _) => IconButton(
               icon: provider.isScanning
@@ -291,12 +557,18 @@ class _HomeScreenState extends State<HomeScreen>
           ),
           IconButton(
             icon: Icon(Icons.history_rounded, color: Color(0xFF007AFF)),
+            tooltip: 'Access History',
             onPressed: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const HistoryScreen()),
               );
             },
+          ),
+          IconButton(
+            icon: Icon(Icons.logout_rounded, color: Color(0xFFFF3B30)),
+            tooltip: 'Logout',
+            onPressed: () => _showLogoutDialog(),
           ),
         ],
       ),

@@ -268,6 +268,21 @@ class _LoginScreenState extends State<LoginScreen>
                                     _performLogin(account, context),
                                 label: 'Sign In',
                               ),
+                            SizedBox(height: 16),
+
+                            // Forgot Password Link
+                            TextButton(
+                              onPressed: () =>
+                                  _showForgotPasswordDialog(account),
+                              child: Text(
+                                'Forgot Password?',
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF007AFF),
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -384,6 +399,244 @@ class _LoginScreenState extends State<LoginScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _showForgotPasswordDialog(Account account) async {
+    final emailController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    bool isLoading = false;
+
+    await showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: Row(
+                children: [
+                  Icon(Icons.lock_reset_rounded,
+                      color: Color(0xFF007AFF), size: 28),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Reset Password',
+                      style: GoogleFonts.inter(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1C1C1E),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              content: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Enter your email address and we\'ll send you a link to reset your password.',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: Color(0xFF8E8E93),
+                        height: 1.5,
+                      ),
+                    ),
+                    SizedBox(height: 20),
+                    TextFormField(
+                      controller: emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      enabled: !isLoading,
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        color: Color(0xFF1C1C1E),
+                        fontWeight: FontWeight.w500,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Email',
+                        labelStyle: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: Color(0xFF8E8E93),
+                          fontWeight: FontWeight.w500,
+                        ),
+                        filled: true,
+                        fillColor: Color(0xFFF5F5F7),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:
+                              BorderSide(color: Color(0xFFE5E5EA), width: 1),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:
+                              BorderSide(color: Color(0xFF007AFF), width: 2),
+                        ),
+                        errorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:
+                              BorderSide(color: Color(0xFFFF3B30), width: 1),
+                        ),
+                        focusedErrorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:
+                              BorderSide(color: Color(0xFFFF3B30), width: 2),
+                        ),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                        errorStyle: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: Color(0xFFFF3B30),
+                        ),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter your email';
+                        }
+                        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                            .hasMatch(value)) {
+                          return 'Invalid email format';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: isLoading
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: Text(
+                    'Cancel',
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: isLoading ? Color(0xFFD1D1D6) : Color(0xFF8E8E93),
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: isLoading
+                      ? null
+                      : () async {
+                          if (!formKey.currentState!.validate()) {
+                            return;
+                          }
+
+                          setDialogState(() {
+                            isLoading = true;
+                          });
+
+                          try {
+                            // Using Appwrite console for password reset
+                            // User will receive email with link to Appwrite's built-in reset page
+                            await account.createRecovery(
+                              email: emailController.text,
+                              url: 'https://sgp.cloud.appwrite.io/console',
+                            );
+
+                            if (mounted) {
+                              Navigator.of(dialogContext).pop();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Row(
+                                    children: [
+                                      Icon(Icons.check_circle_rounded,
+                                          color: Colors.white),
+                                      SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          'Password reset email sent! Check your inbox.',
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  backgroundColor: Color(0xFF34C759),
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  duration: Duration(seconds: 5),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            print('Password recovery error: $e');
+
+                            setDialogState(() {
+                              isLoading = false;
+                            });
+
+                            String errorMessage = 'Failed to send reset email.';
+                            if (e is AppwriteException) {
+                              if (e.code == 404) {
+                                errorMessage = 'Email not found in our system.';
+                              } else if (e.message != null) {
+                                errorMessage = e.message!;
+                              }
+                            }
+
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(errorMessage),
+                                  backgroundColor: Color(0xFFFF3B30),
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  style: TextButton.styleFrom(
+                    backgroundColor: isLoading
+                        ? Color(0xFFE5E5EA)
+                        : Color(0xFF007AFF).withOpacity(0.1),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: isLoading
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                  Color(0xFF8E8E93)),
+                            ),
+                          )
+                        : Text(
+                            'Send Reset Email',
+                            style: GoogleFonts.inter(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF007AFF),
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    emailController.dispose();
   }
 
   Future<void> _performLogin(Account account, BuildContext context) async {

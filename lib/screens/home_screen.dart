@@ -45,6 +45,9 @@ class _HomeScreenState extends State<HomeScreen>
       _isUnlocking = true;
     });
 
+    // Start tracking response time
+    final startTime = DateTime.now();
+
     try {
       final key = enc.Key.fromUtf8(_hardcodedKey);
       final iv = enc.IV.fromUtf8(_hardcodedIV);
@@ -74,6 +77,12 @@ class _HomeScreenState extends State<HomeScreen>
           .get(Uri.parse('http://$ipAddress:80/buka?code=$encodedCode'))
           .timeout(Duration(seconds: 10));
 
+      // Calculate response time
+      final endTime = DateTime.now();
+      final responseTime = endTime.difference(startTime);
+      final seconds = responseTime.inSeconds;
+      final milliseconds = responseTime.inMilliseconds % 1000;
+
       if (response.statusCode == 200) {
         print('Perintah terenkripsi dikirim dan diterima oleh ESP32.');
         final idString = response.body.trim();
@@ -82,22 +91,10 @@ class _HomeScreenState extends State<HomeScreen>
           final deviceProvider =
               Provider.of<DeviceProvider>(context, listen: false);
           deviceProvider.addAccessLogLocally(id);
+
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Row(
-                  children: [
-                    Icon(Icons.check_circle_rounded, color: Colors.white),
-                    SizedBox(width: 12),
-                    Text('Door unlocked successfully!'),
-                  ],
-                ),
-                backgroundColor: Color(0xFF34C759),
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-            );
+            // Show success popup with response time
+            _showSuccessPopup(seconds, milliseconds);
           }
         } else {
           print('Gagal menguraikan ID dari respons ESP32: ${response.body}');
@@ -158,6 +155,106 @@ class _HomeScreenState extends State<HomeScreen>
         });
       }
     }
+  }
+
+  void _showSuccessPopup(int seconds, int milliseconds) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PopScope(
+        canPop: false,
+        child: Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Color(0xFF34C759),
+                  Color(0xFF248A3D),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0xFF34C759).withOpacity(0.4),
+                  blurRadius: 30,
+                  offset: Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.check_circle_rounded,
+                    size: 64,
+                    color: Colors.white,
+                  ),
+                ),
+                SizedBox(height: 24),
+                Text(
+                  'AC Box Terbuka!',
+                  style: GoogleFonts.inter(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: 16),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Waktu Response',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.9),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        '${seconds}.${milliseconds.toString().padLeft(3, '0')} detik',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    // Auto dismiss after 5 seconds
+    Future.delayed(Duration(seconds: 5), () {
+      if (mounted && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+    });
   }
 
   void _showConnectionErrorDialog() {
